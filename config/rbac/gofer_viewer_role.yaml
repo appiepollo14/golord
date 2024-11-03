@@ -1,0 +1,23 @@
+# permissions for end users to view gofers.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: golord
+    app.kubernetes.io/managed-by: kustomize
+  name: gofer-viewer-role
+rules:
+- apiGroups:
+  - avasten.nl
+  resources:
+  - gofers
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - avasten.nl
+  resources:
+  - gofers/status
+  verbs:
+  - get

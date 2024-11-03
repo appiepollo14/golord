@@ -1,0 +1,58 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: manager-role
+rules:
+- apiGroups:
+  - avasten.nl
+  resources:
+  - fetches
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - avasten.nl
+  resources:
+  - fetches/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - avasten.nl
+  resources:
+  - fetches/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - avasten.nl
+  resources:
+  - gofers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - avasten.nl
+  resources:
+  - gofers/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - avasten.nl
+  resources:
+  - gofers/status
+  verbs:
+  - get
+  - patch
+  - update

@@ -1,0 +1,7 @@
+## Append samples of your project ##
+resources:
+- v1alpha1_gofer.yaml
+- _v1alpha1_gofer.yaml
+- v1alpha1_fetch.yaml
+- _v1alpha1_fetch.yaml
+#+kubebuilder:scaffold:manifestskustomizesamples

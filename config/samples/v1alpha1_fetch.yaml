@@ -1,0 +1,9 @@
+apiVersion: avasten.nl/v1alpha1
+kind: Fetch
+metadata:
+  labels:
+    app.kubernetes.io/name: golord
+    app.kubernetes.io/managed-by: kustomize
+  name: fetch-sample
+spec:
+  # TODO(user): Add fields here

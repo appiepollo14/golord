@@ -1,0 +1,6 @@
+apiVersion: avasten.nl/v1alpha1
+kind: Gofer
+metadata:
+  name: example-gofer
+spec:
+  deployments: 3

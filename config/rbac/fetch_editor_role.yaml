@@ -1,0 +1,27 @@
+# permissions for end users to edit fetches.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: golord
+    app.kubernetes.io/managed-by: kustomize
+  name: fetch-editor-role
+rules:
+- apiGroups:
+  - avasten.nl
+  resources:
+  - fetches
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - avasten.nl
+  resources:
+  - fetches/status
+  verbs:
+  - get

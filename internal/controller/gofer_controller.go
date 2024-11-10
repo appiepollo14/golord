@@ -23,12 +23,14 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	avastennlv1alpha1 "github.com/appiepollo14/golord/api/v1alpha1"
 )
@@ -59,14 +61,33 @@ func (r *GoferReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 	log.Info("Reconciling Gofer: " + req.Name)
 
 	// Fetch the Gofer instance
-	var gofer avastennlv1alpha1.Gofer
-	if err := r.Get(ctx, req.NamespacedName, &gofer); err != nil {
+	gofer := &avastennlv1alpha1.Gofer{}
+	if err := r.Get(ctx, req.NamespacedName, gofer); err != nil {
 		if errors.IsNotFound(err) {
 			log.Info("Gofer resource not found. Ignoring since object must be deleted.")
 			return ctrl.Result{}, nil
 		}
 		log.Error(err, "Failed to get Gofer")
 		return ctrl.Result{}, err
+	}
+
+	// Let's just set the status as Unknown when no status is available
+	if gofer.Status.Conditions == nil || len(gofer.Status.Conditions) == 0 {
+		meta.SetStatusCondition(&gofer.Status.Conditions, metav1.Condition{Type: avastennlv1alpha1.TypeReconciledGofer, Status: metav1.ConditionUnknown, Reason: "Reconciling", Message: "Starting reconciliation"})
+		if err := r.Status().Update(ctx, gofer); err != nil {
+			log.Error(err, "Failed to update Gofer status")
+			return ctrl.Result{}, err
+		}
+
+		// Let's re-fetch the memcached Custom Resource after updating the status
+		// so that we have the latest state of the resource on the cluster and we will avoid
+		// raising the error "the object has been modified, please apply
+		// your changes to the latest version and try again" which would re-trigger the reconciliation
+		// if we try to update it again in the following operations
+		if err := r.Get(ctx, req.NamespacedName, gofer); err != nil {
+			log.Error(err, "Failed to re-fetch Gofer")
+			return ctrl.Result{}, err
+		}
 	}
 
 	// Check if the "default" namespace exists
@@ -108,6 +129,28 @@ func (r *GoferReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 		return ctrl.Result{}, err
 	}
 
+	log.Info("Resourceversion of Fetch before update: ", "version", existingFetch.ResourceVersion)
+	// If there is no update to spec, the resourceversion does not change!
+	if err = r.Update(ctx, &existingFetch); err != nil {
+		log.Error(err, "err")
+		// updating the fetch failed
+		return ctrl.Result{}, err
+	} else {
+		log.Info("Update Fetch succeeded")
+		_ = r.Get(ctx, types.NamespacedName{Name: fetch.Name, Namespace: fetch.Namespace}, &existingFetch)
+		log.Info("Resourceversion of Fetch after update: ", "version", existingFetch.ResourceVersion)
+	}
+
+	// The following implementation will update the status
+	meta.SetStatusCondition(&gofer.Status.Conditions, metav1.Condition{Type: avastennlv1alpha1.TypeReconciledGofer,
+		Status: metav1.ConditionTrue, Reason: "Reconciling", ObservedGeneration: gofer.Generation,
+		Message: fmt.Sprintf("Deployment for custom resource (%s) with %d replicas created successfully", gofer.Name, gofer.Spec.Deployments)})
+
+	if err := r.Status().Update(ctx, gofer); err != nil {
+		log.Error(err, "Failed to update Memcached status")
+		return ctrl.Result{}, err
+	}
+
 	return ctrl.Result{}, nil
 }
 
@@ -116,5 +159,6 @@ func (r *GoferReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&avastennlv1alpha1.Gofer{}).
 		Owns(&appsv1.Deployment{}).
+		WithEventFilter(predicate.GenerationChangedPredicate{}).
 		Complete(r)
 }

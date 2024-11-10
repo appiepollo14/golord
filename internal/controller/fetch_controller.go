@@ -28,6 +28,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	avastennlv1alpha1 "github.com/appiepollo14/golord/api/v1alpha1"
@@ -104,39 +105,40 @@ func (r *FetchReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 	// Step 2: Ensure the Deployment exists in the Namespace
 	deploymentName := fmt.Sprintf("%s-nginx-deployment", fetch.Name)
 	var deployment appsv1.Deployment
+	// Deployment does not exist, so create it
+	deployment = appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      deploymentName,
+			Namespace: namespaceName,
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: &fetch.Spec.Deployments,
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{"app": "nginx"},
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{"app": "nginx"},
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:  "nginx",
+							Image: "nginx",
+						},
+					},
+				},
+			},
+		},
+	}
+	if err := controllerutil.SetControllerReference(&gofer, &deployment, r.Scheme); err != nil {
+		log.Error(err, "Failed to set owner reference on Deployment")
+		return ctrl.Result{}, err
+	}
 	if err := r.Get(ctx, types.NamespacedName{Name: deploymentName, Namespace: namespaceName}, &deployment); err != nil {
 		if errors.IsNotFound(err) {
-			// Deployment does not exist, so create it
-			deployment = appsv1.Deployment{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      deploymentName,
-					Namespace: namespaceName,
-				},
-				Spec: appsv1.DeploymentSpec{
-					Replicas: &fetch.Spec.Deployments,
-					Selector: &metav1.LabelSelector{
-						MatchLabels: map[string]string{"app": "nginx"},
-					},
-					Template: corev1.PodTemplateSpec{
-						ObjectMeta: metav1.ObjectMeta{
-							Labels: map[string]string{"app": "nginx"},
-						},
-						Spec: corev1.PodSpec{
-							Containers: []corev1.Container{
-								{
-									Name:  "nginx",
-									Image: "nginx",
-								},
-							},
-						},
-					},
-				},
-			}
 			// Set Gofer as owner of Deployment using SetControllerReference
-			if err := controllerutil.SetControllerReference(&gofer, &deployment, r.Scheme); err != nil {
-				log.Error(err, "Failed to set owner reference on Deployment")
-				return ctrl.Result{}, err
-			}
+
 			if err := r.Create(ctx, &deployment); err != nil {
 				log.Error(err, "Failed to create Deployment", "Deployment.Name", deploymentName)
 				return ctrl.Result{}, err
@@ -145,6 +147,16 @@ func (r *FetchReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 		} else {
 			log.Error(err, "Failed to get Deployment")
 			return ctrl.Result{}, err
+		}
+	} else {
+		log.Info("Deployment exists")
+		if deployment.Spec.Replicas != &fetch.Spec.Deployments {
+			deployment.Spec.Replicas = &fetch.Spec.Deployments
+			if err = r.Update(ctx, &deployment); err != nil {
+				log.Error(err, "Update deployment failed")
+				return ctrl.Result{}, err
+			}
+			log.Info("Update deployment succeeeded")
 		}
 	}
 
@@ -155,5 +167,28 @@ func (r *FetchReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 func (r *FetchReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&avastennlv1alpha1.Fetch{}).
+		Watches(&avastennlv1alpha1.Gofer{}, handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, gofer client.Object) []ctrl.Request {
+			// map a change from referenced configMap to ExampleCRDWithConfigMapRef, which causes its re-reconcile
+			fetches := &avastennlv1alpha1.FetchList{}
+			if err := mgr.GetClient().List(ctx, fetches); err != nil {
+				mgr.GetLogger().Error(err, "while listing fetches")
+				return nil
+			}
+
+			reqs := make([]ctrl.Request, 0, len(fetches.Items))
+			for _, item := range fetches.Items {
+				if item.Spec.Gofername == gofer.GetName() {
+					mgr.GetLogger().Info("Name equals")
+					reqs = append(reqs, ctrl.Request{
+						NamespacedName: types.NamespacedName{
+							Namespace: item.GetNamespace(),
+							Name:      item.GetName(),
+						},
+					})
+				}
+			}
+
+			return reqs
+		})).
 		Complete(r)
 }

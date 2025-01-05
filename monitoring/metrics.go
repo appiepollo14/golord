@@ -6,15 +6,15 @@ import (
 )
 
 var (
-	MemcachedDeploymentSizeUndesiredCountTotal = prometheus.NewHistogram(
+	ReconcileDurationTimer = prometheus.NewHistogram(
 		prometheus.HistogramOpts{
-			Name: "memcached_deployment_size_undesired_count_total",
-			Help: "Total number of times the deployment size was not as desired.",
+			Name: "golord_func_duration_seconds",
+			Help: "Function duration for golords method.",
 		},
 	)
 )
 
 // RegisterMetrics will register metrics with the global prometheus registry
 func RegisterMetrics() {
-	metrics.Registry.MustRegister(MemcachedDeploymentSizeUndesiredCountTotal)
+	metrics.Registry.MustRegister(ReconcileDurationTimer)
 }

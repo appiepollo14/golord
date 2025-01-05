@@ -33,6 +33,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	avastennlv1alpha1 "github.com/appiepollo14/golord/api/v1alpha1"
+	"github.com/appiepollo14/golord/monitoring"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 // GoferReconciler reconciles a Gofer object
@@ -56,6 +58,9 @@ type GoferReconciler struct {
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.17.3/pkg/reconcile
 // Reconcile is part of the main Kubernetes reconciliation loop
 func (r *GoferReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	reconcileDurationTimer := prometheus.NewTimer(monitoring.ReconcileDurationTimer)
+	defer reconcileDurationTimer.ObserveDuration()
+
 	log := log.FromContext(ctx)
 
 	log.Info("Reconciling Gofer: " + req.Name)

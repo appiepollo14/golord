@@ -37,7 +37,6 @@ import (
 	avastennlv1alpha1 "github.com/appiepollo14/golord/api/v1alpha1"
 	"github.com/appiepollo14/golord/internal/controller"
 	"github.com/appiepollo14/golord/monitoring"
-	"github.com/prometheus/client_golang/prometheus"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -74,9 +73,6 @@ func main() {
 	}
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
-
-	timer := prometheus.NewTimer(monitoring.MemcachedDeploymentSizeUndesiredCountTotal)
-	timer.ObserveDuration()
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 

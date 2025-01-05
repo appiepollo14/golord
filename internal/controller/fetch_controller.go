@@ -81,7 +81,7 @@ func (r *FetchReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 	}
 
 	// Step 1: Ensure the Namespace exists
-	namespaceName := fetch.Name
+	namespaceName := "default"
 	var namespace corev1.Namespace
 	if err := r.Get(ctx, types.NamespacedName{Name: namespaceName}, &namespace); err != nil {
 		if errors.IsNotFound(err) {
@@ -131,7 +131,7 @@ func (r *FetchReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 			},
 		},
 	}
-	if err := controllerutil.SetControllerReference(&gofer, &deployment, r.Scheme); err != nil {
+	if err := controllerutil.SetControllerReference(&fetch, &deployment, r.Scheme); err != nil {
 		log.Error(err, "Failed to set owner reference on Deployment")
 		return ctrl.Result{}, err
 	}
@@ -167,6 +167,7 @@ func (r *FetchReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 func (r *FetchReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&avastennlv1alpha1.Fetch{}).
+		Owns(&appsv1.Deployment{}).
 		Watches(&avastennlv1alpha1.Gofer{}, handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, gofer client.Object) []ctrl.Request {
 			// map a change from referenced configMap to ExampleCRDWithConfigMapRef, which causes its re-reconcile
 			fetches := &avastennlv1alpha1.FetchList{}

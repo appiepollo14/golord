@@ -36,6 +36,8 @@ import (
 
 	avastennlv1alpha1 "github.com/appiepollo14/golord/api/v1alpha1"
 	"github.com/appiepollo14/golord/internal/controller"
+	"github.com/appiepollo14/golord/monitoring"
+	"github.com/prometheus/client_golang/prometheus"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -48,6 +50,7 @@ func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
 	utilruntime.Must(avastennlv1alpha1.AddToScheme(scheme))
+	monitoring.RegisterMetrics()
 	//+kubebuilder:scaffold:scheme
 }
 
@@ -71,6 +74,9 @@ func main() {
 	}
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
+
+	timer := prometheus.NewTimer(monitoring.MemcachedDeploymentSizeUndesiredCountTotal)
+	timer.ObserveDuration()
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
@@ -135,6 +141,12 @@ func main() {
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Gofer")
 		os.Exit(1)
+	}
+	if os.Getenv("ENABLE_WEBHOOKS") != "false" {
+		if err = (&avastennlv1alpha1.Gofer{}).SetupWebhookWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create webhook", "webhook", "Gofer")
+			os.Exit(1)
+		}
 	}
 	//+kubebuilder:scaffold:builder
 
